@@ -10,6 +10,7 @@ dependencies = [
     "arxiv>=2.1",
     "sentence-transformers>=3.0",
     "sqlite-vec>=0.1.6",
+    "requests>=2.31",
 ]
 
 [project.optional-dependencies]

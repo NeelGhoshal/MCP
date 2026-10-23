@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -72,9 +73,12 @@ CREATE TABLE IF NOT EXISTS notes (
 """
 
 
+def library_home() -> Path:
+    return Path(os.environ.get("LIBRARIAN_HOME", Path.home() / ".librarian"))
+
+
 def default_db_path() -> Path:
-    home = Path(os.environ.get("LIBRARIAN_HOME", Path.home() / ".librarian"))
-    return home / "library.db"
+    return library_home() / "library.db"
 
 
 def _now() -> str:
@@ -156,14 +160,18 @@ class Store:
     def __enter__(self) -> Store:
         return self
 
-    def __exit__(self, *exc) -> None:
+    def __exit__(self, *_exc) -> None:
         self.close()
 
     # --- papers ---
 
-    def add_paper(self, paper: Paper) -> Paper:
+    def _tx(self, commit: bool):
+        """Commit on exit, or with commit=False join a transaction the caller manages via `with store.db:`."""
+        return self.db if commit else nullcontext()
+
+    def add_paper(self, paper: Paper, commit: bool = True) -> Paper:
         paper.added_at = paper.added_at or _now()
-        with self.db:
+        with self._tx(commit):
             self.db.execute(
                 "INSERT INTO papers (id, title, authors, year, abstract, source, arxiv_id, sha256, path, added_at)"
                 " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -197,11 +205,17 @@ class Store:
 
     # --- chunks + vectors ---
 
-    def add_chunks(self, paper_id: str, chunks: list[Chunk], embeddings: list[list[float]] | None = None) -> list[int]:
+    def add_chunks(
+        self,
+        paper_id: str,
+        chunks: list[Chunk],
+        embeddings: list[list[float]] | None = None,
+        commit: bool = True,
+    ) -> list[int]:
         if embeddings is not None and len(embeddings) != len(chunks):
             raise ValueError("chunks and embeddings must have the same length")
         ids: list[int] = []
-        with self.db:
+        with self._tx(commit):
             for i, chunk in enumerate(chunks):
                 cur = self.db.execute(
                     "INSERT INTO chunks (paper_id, seq, section, page, text) VALUES (?, ?, ?, ?, ?)",
