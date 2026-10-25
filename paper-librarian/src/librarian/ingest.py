@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import re
+import unicodedata
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -12,6 +14,7 @@ import arxiv
 import pymupdf
 import requests
 
+from librarian.citations import INDENT, LinkResult, link_paper
 from librarian.embed import Embedder
 from librarian.store import Chunk, Paper, Store, library_home
 
@@ -51,8 +54,14 @@ CANONICAL_SECTIONS = {
     "bibliography": "References",
     "appendix": "Appendix",
 }
-# "3", "3.1", "3.", "IV.", "A." style numbering in front of a heading.
-HEADING_NUMBER = re.compile(r"^(?:\d+(?:\.\d+)*\.?|[IVX]+\.|[A-H]\.?)\s+")
+# Names that are headings even when unnumbered and in plain type.
+DISTINCTIVE_SECTIONS = {"Abstract", "References", "Acknowledgments"}
+# "3", "3.1", "3.", "IV.", "A." style numbering in front of a heading. One or two digits per level,
+# so years ("2018.") and decimals ("93.1") are not mistaken for section numbers.
+HEADING_NUMBER = re.compile(r"^(?:\d{1,2}(?:\.\d{1,2}){0,3}\.?|[IVX]+\.|[A-H]\.?)\s+")
+# page_text() prefixes lines set in bold or larger-than-body type with this marker.
+EMPHASIS = "\x01"
+BOLD_FONT = re.compile(r"bold|cmbx|medi|black|heavy|demi", re.IGNORECASE)
 MAX_HEADING_WORDS = 8
 
 # all-MiniLM-L6-v2 truncates at 256 word pieces, roughly 180-200 English words.
@@ -65,6 +74,7 @@ class Segment:
     section: str
     page: int
     text: str
+    raw: str = field(default="", repr=False)  # original lines; indented lines start with INDENT
 
 
 @dataclass
@@ -85,7 +95,7 @@ class IngestResult:
     paper: Paper
     duplicate: bool
     chunk_count: int = 0
-    references_text: str = field(default="", repr=False)
+    citations: LinkResult | None = None
 
 
 def parse_arxiv_id(source: str) -> str | None:
@@ -137,12 +147,109 @@ def extract_pdf(path: Path) -> ExtractedPdf:
         title = (meta.get("title") or "").strip() or _largest_text_on_first_page(doc) or path.stem
         authors = [a.strip() for a in re.split(r"[;,]| and ", meta.get("author") or "") if a.strip()]
         year = _year_from_pdf_date(meta.get("creationDate") or "")
-        pages = [(i + 1, page.get_text(sort=True)) for i, page in enumerate(doc)]
+        pages = [(i + 1, page_text(page)) for i, page in enumerate(doc)]
 
     segments = split_sections(pages)
-    references = " ".join(s.text for s in segments if s.section == "References")
-    body = [s for s in segments if s.section not in ("References",)]
+    references = "\n".join(s.raw for s in segments if s.section == "References")
+    body = [s for s in segments if s.section != "References"]
     return ExtractedPdf(title=title, authors=authors, year=year, segments=body, references_text=references)
+
+
+COLUMN_GAP = 20  # points either side of the page centre a column block may cross
+INDENT_MIN = 4  # points past the column's left edge that count as an indented line
+
+
+def page_text(page: pymupdf.Page) -> str:
+    """Page text in reading order, handling two-column layouts.
+
+    Blocks are banded by full-width blocks (titles, wide figures); within a band the left column is
+    read before the right. Lines indented past their column's left edge are prefixed with INDENT so
+    hanging-indent reference lists can be split later.
+    """
+    mid = page.rect.width / 2
+    blocks = []
+    for block in page.get_text("dict")["blocks"]:
+        lines = [ln for ln in block.get("lines", []) if tuple(ln["dir"]) == (1.0, 0.0)]
+        if not lines:
+            continue
+        x0, y0, x1, _ = block["bbox"]
+        if x0 < mid - COLUMN_GAP and x1 > mid + COLUMN_GAP:
+            column = "full"
+        else:
+            column = "left" if x0 < mid else "right"
+        blocks.append((column, y0, x0, lines))
+
+    two_column = sum(1 for b in blocks if b[0] == "right") >= 3
+    if two_column:
+        ordered, band = [], []
+        for b in sorted(blocks, key=lambda b: (b[1], b[2])):
+            if b[0] == "full":
+                ordered += sorted(band, key=lambda b: (b[0] != "left", b[1])) + [b]
+                band = []
+            else:
+                band.append(b)
+        ordered += sorted(band, key=lambda b: (b[0] != "left", b[1]))
+    else:
+        ordered = sorted(blocks, key=lambda b: (b[1], b[2]))
+
+    left_edge = {}
+    for column, _, x0, _ in ordered:
+        left_edge[column] = min(left_edge.get(column, x0), x0)
+    body_size = _body_font_size(blocks)
+
+    out: list[str] = []
+    for column, _, _, lines in ordered:
+        for ln in _merge_same_baseline(lines):
+            text = _line_text(ln["spans"])
+            if text:
+                indented = ln["bbox"][0] - left_edge[column] > INDENT_MIN
+                emphasized = _is_emphasized(ln["spans"], body_size)
+                out.append((EMPHASIS if emphasized else "") + (INDENT if indented else "") + text)
+        out.append("")  # blank line between blocks
+    return "\n".join(out)
+
+
+def _merge_same_baseline(lines: list[dict]) -> list[dict]:
+    """Some PDFs store one visual line as several ("3" and "Model Architecture"); rejoin them."""
+    merged: list[dict] = []
+    for ln in lines:
+        prev = merged[-1] if merged else None
+        if prev and abs(ln["bbox"][1] - prev["bbox"][1]) < 2 and abs(ln["bbox"][3] - prev["bbox"][3]) < 2:
+            spans = sorted(prev["spans"] + ln["spans"], key=lambda s: s["bbox"][0])
+            x0 = min(prev["bbox"][0], ln["bbox"][0])
+            merged[-1] = {**prev, "spans": spans, "bbox": (x0, *prev["bbox"][1:])}
+        else:
+            merged.append(ln)
+    return merged
+
+
+def _line_text(spans: list[dict]) -> str:
+    """Join spans, inserting a space where the layout leaves a gap instead of a space character."""
+    parts, prev_x1 = [], None
+    for span in spans:
+        if prev_x1 is not None and span["bbox"][0] - prev_x1 > 1.0:
+            parts.append(" ")
+        parts.append(span["text"])
+        prev_x1 = span["bbox"][2]
+    return unicodedata.normalize("NFKC", "".join(parts)).strip()  # NFKC also expands ligatures
+
+
+def _body_font_size(blocks: list) -> float:
+    sizes: Counter[float] = Counter()
+    for *_, lines in blocks:
+        for ln in lines:
+            for span in ln["spans"]:
+                sizes[round(span["size"], 1)] += len(span["text"].strip())
+    return sizes.most_common(1)[0][0] if sizes else 0.0
+
+
+def _is_emphasized(spans: list[dict], body_size: float) -> bool:
+    visible = [s for s in spans if s["text"].strip()]
+    if not visible:
+        return False
+    bold = all(s["flags"] & 16 or BOLD_FONT.search(s["font"]) for s in visible)
+    larger = body_size > 0 and min(s["size"] for s in visible) >= body_size * 1.1
+    return bold or larger
 
 
 def _largest_text_on_first_page(doc: pymupdf.Document) -> str:
@@ -159,7 +266,8 @@ def _largest_text_on_first_page(doc: pymupdf.Document) -> str:
     if not spans:
         return ""
     biggest = max(s["size"] for s in spans)
-    return " ".join(s["text"].strip() for s in spans if abs(s["size"] - biggest) < 0.5)[:300]
+    title = " ".join(s["text"].strip() for s in spans if abs(s["size"] - biggest) < 0.5)
+    return unicodedata.normalize("NFKC", title)[:300]
 
 
 def _year_from_pdf_date(value: str) -> int | None:
@@ -169,8 +277,14 @@ def _year_from_pdf_date(value: str) -> int | None:
 
 
 def heading_name(line: str) -> str | None:
-    """Return a canonical section name if `line` looks like a section heading."""
-    text = line.strip().rstrip(":").strip()
+    """Return a section name if `line` looks like a section heading.
+
+    Known names ("Introduction", "3 Methods") are accepted as plain text. Other numbered headings
+    ("3 Model Architecture") must also be emphasized (bold or large type), which numbered body lines
+    such as list items or reference continuations are not.
+    """
+    emphasized = line.startswith(EMPHASIS)
+    text = line.lstrip(EMPHASIS).strip().rstrip(":").strip()
     if not text or len(text.split()) > MAX_HEADING_WORDS:
         return None
     numbered = HEADING_NUMBER.match(text)
@@ -179,11 +293,22 @@ def heading_name(line: str) -> str | None:
         return None
     key = re.sub(r"\s+", " ", bare).lower()
     if key in CANONICAL_SECTIONS:
-        return CANONICAL_SECTIONS[key]
+        name = CANONICAL_SECTIONS[key]
+        # An unnumbered plain-text "Method" or "Results" is usually a table header, not a heading.
+        if numbered or emphasized or name in DISTINCTIVE_SECTIONS:
+            return name
+        return None
     if key.startswith("appendix"):
         return "Appendix"
     # Numbered, Title Case headings ("3 Model Architecture") keep their own name.
-    if numbered and bare[:1].isupper() and not bare.endswith(".") and re.search(r"[A-Za-z]{3}", bare):
+    if (
+        numbered
+        and emphasized
+        and bare[:1].isupper()
+        and not bare.endswith((".", ",", "-"))
+        and ". " not in bare
+        and re.search(r"[A-Za-z]{3}", bare)
+    ):
         return bare
     return None
 
@@ -195,7 +320,7 @@ def split_sections(pages: list[tuple[int, str]]) -> list[Segment]:
     def flush():
         text = _clean(" ".join(buf))
         if text:
-            segments.append(Segment(section=section, page=page_no, text=text))
+            segments.append(Segment(section=section, page=page_no, text=text, raw="\n".join(buf)))
 
     for number, text in pages:
         if buf:  # a section continuing onto a new page starts a new segment, so pages stay accurate
@@ -208,7 +333,7 @@ def split_sections(pages: list[tuple[int, str]]) -> list[Segment]:
                 flush()
                 section, page_no, buf = name, number, []
             else:
-                buf.append(line)
+                buf.append(line.lstrip(EMPHASIS))
     flush()
     return segments
 
@@ -298,9 +423,28 @@ def ingest(
     say(f"Embedding {len(chunks)} chunks")
     embeddings = embedder.embed([c.text for c in chunks])
 
-    # Paper and chunks go in one transaction so a failure never leaves a half-ingested paper.
-    with store.db:
+    say("Linking citations")
+    # Paper, chunks and citations go in one transaction so a failure never leaves a half-ingested paper.
+    with store.transaction():
         store.add_paper(paper, commit=False)
         store.add_chunks(paper.id, chunks, embeddings, commit=False)
-    say(f"Added {paper.title!r} ({len(chunks)} chunks)")
-    return IngestResult(paper=paper, duplicate=False, chunk_count=len(chunks), references_text=extracted.references_text)
+        links = link_paper(store, paper, extracted.references_text, commit=False)
+    say(
+        f"Added {paper.title!r}: {len(chunks)} chunks, {links.references} references "
+        f"({links.linked} in library), cited by {links.cited_by} library references"
+    )
+    return IngestResult(paper=paper, duplicate=False, chunk_count=len(chunks), citations=links)
+
+
+def rebuild_citations(store: Store, progress: Progress | None = None) -> dict[str, LinkResult]:
+    """Re-extract and re-link references for every paper, e.g. after improving reference parsing."""
+    say = progress or (lambda _msg: None)
+    results: dict[str, LinkResult] = {}
+    with store.transaction():
+        for paper in store.list_papers():
+            if not paper.path or not Path(paper.path).is_file():
+                say(f"Skipping {paper.id}: PDF not found at {paper.path}")
+                continue
+            results[paper.id] = link_paper(store, paper, extract_pdf(Path(paper.path)).references_text, commit=False)
+            say(f"{paper.id}: {results[paper.id].references} references, {results[paper.id].linked} in library")
+    return results

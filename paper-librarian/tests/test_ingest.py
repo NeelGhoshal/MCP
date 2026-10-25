@@ -12,6 +12,7 @@ from librarian.ingest import (
     heading_name,
     ingest,
     parse_arxiv_id,
+    rebuild_citations,
     split_sections,
 )
 from librarian.store import Store
@@ -101,7 +102,13 @@ def test_parse_arxiv_id(source, expected):
         ("IV. EXPERIMENTS", "Experiments"),
         ("References", "References"),
         ("Appendix B: Proofs", "Appendix"),
-        ("3 Model Architecture", "Model Architecture"),
+        ("\x013 Model Architecture", "Model Architecture"),
+        ("3 Model Architecture", None),  # generic numbered headings must be emphasized
+        ("\x012018. Contextual string embeddings for sequence", None),
+        ("\x0193.1 F1 behind fine-tuning the entire model. This", None),
+        ("\x01Introduction", "Introduction"),
+        ("method", None),  # unnumbered, plain type: a table header
+        ("\x01Results", "Results"),
         ("We study widgets.", None),
         ("Model", None),
         ("2     Google Research      University of Toronto", None),
@@ -179,6 +186,28 @@ def test_ingest_local_pdf(store, paper_pdf):
     again = ingest(str(paper_pdf), store, embedder)
     assert again.duplicate and again.paper.id == result.paper.id
     assert embedder.calls == 1
+
+
+def test_ingest_stores_and_links_citations(store, paper_pdf, tmp_path):
+    cited = make_pdf(tmp_path / "gadgets.pdf", [[("Gadgets", 20), *body(20, "gadget")]])
+    first = ingest(str(cited), store, FakeEmbedder())
+    assert first.paper.title == "Gadgets"
+
+    result = ingest(str(paper_pdf), store, FakeEmbedder())
+    refs = store.get_citations(result.paper.id)
+    assert [r.raw_reference for r in refs] == ["A. Smith. Gadgets. 2019.", "B. Lee. Gizmos. 2020."]
+    # "Gadgets" is shorter than MIN_TITLE_CHARS, so it is deliberately not linked on title alone.
+    assert result.citations.references == 2 and result.citations.linked == 0
+
+
+def test_rebuild_citations(store, paper_pdf):
+    result = ingest(str(paper_pdf), store, FakeEmbedder())
+    store.delete_citations(result.paper.id)
+    assert store.get_citations(result.paper.id) == []
+    messages = []
+    rebuilt = rebuild_citations(store, progress=messages.append)
+    assert rebuilt[result.paper.id].references == 2
+    assert len(store.get_citations(result.paper.id)) == 2 and messages
 
 
 def test_ingest_missing_file(store):

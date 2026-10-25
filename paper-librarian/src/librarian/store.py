@@ -120,6 +120,8 @@ class Citation:
     seq: int
     raw_reference: str
     matched_paper_id: str | None = None
+    id: int | None = None
+    paper_id: str | None = None  # the citing paper
 
 
 class Store:
@@ -165,13 +167,13 @@ class Store:
 
     # --- papers ---
 
-    def _tx(self, commit: bool):
+    def transaction(self, commit: bool = True):
         """Commit on exit, or with commit=False join a transaction the caller manages via `with store.db:`."""
         return self.db if commit else nullcontext()
 
     def add_paper(self, paper: Paper, commit: bool = True) -> Paper:
         paper.added_at = paper.added_at or _now()
-        with self._tx(commit):
+        with self.transaction(commit):
             self.db.execute(
                 "INSERT INTO papers (id, title, authors, year, abstract, source, arxiv_id, sha256, path, added_at)"
                 " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -215,7 +217,7 @@ class Store:
         if embeddings is not None and len(embeddings) != len(chunks):
             raise ValueError("chunks and embeddings must have the same length")
         ids: list[int] = []
-        with self._tx(commit):
+        with self.transaction(commit):
             for i, chunk in enumerate(chunks):
                 cur = self.db.execute(
                     "INSERT INTO chunks (paper_id, seq, section, page, text) VALUES (?, ?, ?, ?, ?)",
@@ -245,19 +247,40 @@ class Store:
 
     # --- citations ---
 
-    def add_citations(self, paper_id: str, citations: list[Citation]) -> None:
-        with self.db:
+    def add_citations(self, paper_id: str, citations: list[Citation], commit: bool = True) -> None:
+        with self.transaction(commit):
             self.db.executemany(
                 "INSERT INTO citations (paper_id, seq, raw_reference, matched_paper_id) VALUES (?, ?, ?, ?)",
                 [(paper_id, c.seq, c.raw_reference, c.matched_paper_id) for c in citations],
             )
 
     def get_citations(self, paper_id: str) -> list[Citation]:
+        """References made by `paper_id`, in order."""
         rows = self.db.execute(
-            "SELECT seq, raw_reference, matched_paper_id FROM citations WHERE paper_id = ? ORDER BY seq",
-            (paper_id,),
+            "SELECT * FROM citations WHERE paper_id = ? ORDER BY seq", (paper_id,)
         ).fetchall()
-        return [Citation(seq=r["seq"], raw_reference=r["raw_reference"], matched_paper_id=r["matched_paper_id"]) for r in rows]
+        return [_row_to_citation(r) for r in rows]
+
+    def get_cited_by(self, paper_id: str) -> list[Citation]:
+        """References in other library papers that point at `paper_id`."""
+        rows = self.db.execute(
+            "SELECT * FROM citations WHERE matched_paper_id = ? ORDER BY paper_id, seq", (paper_id,)
+        ).fetchall()
+        return [_row_to_citation(r) for r in rows]
+
+    def unmatched_citations(self, exclude_paper_id: str | None = None) -> list[Citation]:
+        rows = self.db.execute(
+            "SELECT * FROM citations WHERE matched_paper_id IS NULL AND paper_id IS NOT ?", (exclude_paper_id,)
+        ).fetchall()
+        return [_row_to_citation(r) for r in rows]
+
+    def set_citation_match(self, citation_id: int, matched_paper_id: str | None, commit: bool = True) -> None:
+        with self.transaction(commit):
+            self.db.execute("UPDATE citations SET matched_paper_id = ? WHERE id = ?", (matched_paper_id, citation_id))
+
+    def delete_citations(self, paper_id: str, commit: bool = True) -> None:
+        with self.transaction(commit):
+            self.db.execute("DELETE FROM citations WHERE paper_id = ?", (paper_id,))
 
     # --- notes ---
 
@@ -274,6 +297,16 @@ class Store:
             "SELECT id, paper_id, text, created_at FROM notes WHERE paper_id = ? ORDER BY id", (paper_id,)
         ).fetchall()
         return [Note(**dict(r)) for r in rows]
+
+
+def _row_to_citation(row: sqlite3.Row) -> Citation:
+    return Citation(
+        seq=row["seq"],
+        raw_reference=row["raw_reference"],
+        matched_paper_id=row["matched_paper_id"],
+        id=row["id"],
+        paper_id=row["paper_id"],
+    )
 
 
 def _row_to_paper(row: sqlite3.Row) -> Paper:
