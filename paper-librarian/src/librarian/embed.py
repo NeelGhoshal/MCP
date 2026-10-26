@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import threading
 from typing import Protocol
 
 DEFAULT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
@@ -21,17 +22,24 @@ class SentenceTransformerEmbedder:
         self.model_name = model_name or os.environ.get("LIBRARIAN_EMBED_MODEL", DEFAULT_MODEL)
         self.dim = dim
         self._model = None
+        self._load_lock = threading.Lock()
+
+    def warm_up(self) -> None:
+        """Load the model in a background thread so the first search doesn't wait for it."""
+        threading.Thread(target=self._load, name="embedder-warm-up", daemon=True).start()
 
     def _load(self):
-        if self._model is None:
-            from sentence_transformers import SentenceTransformer
+        with self._load_lock:
+            if self._model is None:
+                from sentence_transformers import SentenceTransformer
 
-            self._model = SentenceTransformer(self.model_name)
-            # get_embedding_dimension replaced get_sentence_embedding_dimension in newer releases.
-            get_dim = getattr(self._model, "get_embedding_dimension", None) or self._model.get_sentence_embedding_dimension
-            actual = get_dim()
-            if actual != self.dim:
-                raise ValueError(f"{self.model_name} produces {actual}-dim embeddings, expected {self.dim}")
+                model = SentenceTransformer(self.model_name)
+                # get_embedding_dimension replaced get_sentence_embedding_dimension in newer releases.
+                get_dim = getattr(model, "get_embedding_dimension", None) or model.get_sentence_embedding_dimension
+                actual = get_dim()
+                if actual != self.dim:
+                    raise ValueError(f"{self.model_name} produces {actual}-dim embeddings, expected {self.dim}")
+                self._model = model
         return self._model
 
     @property

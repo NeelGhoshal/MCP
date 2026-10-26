@@ -4,12 +4,12 @@ import pymupdf
 import sqlite_vec
 
 from librarian import __version__
-from librarian.server import mcp
+from librarian.server import create_server
 
 
 def test_package_imports():
     assert __version__ == "0.1.0"
-    assert mcp.name == "paper-librarian"
+    assert create_server().name == "paper-librarian"
 
 
 def test_pymupdf_available():

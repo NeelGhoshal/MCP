@@ -120,6 +120,12 @@ def test_heading_name(line, expected):
     assert heading_name(line) == expected
 
 
+def test_letter_numbering_only_in_appendix():
+    assert heading_name("\x01A Study of Widgets") is None
+    assert heading_name("\x01A Additional Details for BERT", appendix=True) == "Additional Details for BERT"
+    assert heading_name("\x01B.2 Fine-tuning Procedure", appendix=True) == "Fine-tuning Procedure"
+
+
 def test_split_sections_tracks_pages():
     segs = split_sections([(1, "Abstract\nshort text\n1 Introduction\nintro text"), (2, "more intro\nReferences\n[1] x")])
     assert [(s.section, s.page) for s in segs] == [

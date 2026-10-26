@@ -58,7 +58,10 @@ CANONICAL_SECTIONS = {
 DISTINCTIVE_SECTIONS = {"Abstract", "References", "Acknowledgments"}
 # "3", "3.1", "3.", "IV.", "A." style numbering in front of a heading. One or two digits per level,
 # so years ("2018.") and decimals ("93.1") are not mistaken for section numbers.
-HEADING_NUMBER = re.compile(r"^(?:\d{1,2}(?:\.\d{1,2}){0,3}\.?|[IVX]+\.|[A-H]\.?)\s+")
+HEADING_NUMBER = re.compile(r"^(?:\d{1,2}(?:\.\d{1,2}){0,3}\.?|[IVX]+\.)\s+")
+# Appendix numbering ("A", "B.2"). Only used after References/Appendix: elsewhere a leading "A" is
+# far more likely the article ("A Study of Widgets").
+APPENDIX_NUMBER = re.compile(r"^[A-H](?:\.\d{1,2}){0,3}\.?\s+")
 # page_text() prefixes lines set in bold or larger-than-body type with this marker.
 EMPHASIS = "\x01"
 BOLD_FONT = re.compile(r"bold|cmbx|medi|black|heavy|demi", re.IGNORECASE)
@@ -276,19 +279,21 @@ def _year_from_pdf_date(value: str) -> int | None:
     return int(m.group(1)) if m and 1900 <= int(m.group(1)) <= 2100 else None
 
 
-def heading_name(line: str) -> str | None:
+def heading_name(line: str, appendix: bool = False) -> str | None:
     """Return a section name if `line` looks like a section heading.
 
     Known names ("Introduction", "3 Methods") are accepted as plain text. Other numbered headings
     ("3 Model Architecture") must also be emphasized (bold or large type), which numbered body lines
-    such as list items or reference continuations are not.
+    such as list items or reference continuations are not. With `appendix`, letter numbering
+    ("A Additional Details") counts too.
     """
     emphasized = line.startswith(EMPHASIS)
     text = line.lstrip(EMPHASIS).strip().rstrip(":").strip()
     if not text or len(text.split()) > MAX_HEADING_WORDS:
         return None
-    numbered = HEADING_NUMBER.match(text)
-    bare = HEADING_NUMBER.sub("", text).strip()
+    number = HEADING_NUMBER.match(text) or (APPENDIX_NUMBER.match(text) if appendix else None)
+    numbered = number is not None
+    bare = text[number.end():].strip() if number else text
     if re.search(r"\s{3,}", bare):  # wide gaps mean merged columns (affiliations, table rows), not a heading
         return None
     key = re.sub(r"\s+", " ", bare).lower()
@@ -316,6 +321,7 @@ def heading_name(line: str) -> str | None:
 def split_sections(pages: list[tuple[int, str]]) -> list[Segment]:
     segments: list[Segment] = []
     section, page_no, buf = "Front Matter", 1, []
+    appendix_seen = False
 
     def flush():
         text = _clean(" ".join(buf))
@@ -328,8 +334,9 @@ def split_sections(pages: list[tuple[int, str]]) -> list[Segment]:
             buf = []
         page_no = number
         for line in text.splitlines():
-            name = heading_name(line)
+            name = heading_name(line, appendix=appendix_seen)
             if name:
+                appendix_seen = appendix_seen or name in ("References", "Appendix")
                 flush()
                 section, page_no, buf = name, number, []
             else:

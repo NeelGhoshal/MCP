@@ -129,7 +129,8 @@ class Store:
         path = Path(db_path) if db_path is not None else default_db_path()
         if str(path) != ":memory:":
             path.parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(path)
+        # Tools run in worker threads; callers serialize access (see server.AppState.lock).
+        self.db = sqlite3.connect(path, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA foreign_keys = ON")
         self.db.enable_load_extension(True)
