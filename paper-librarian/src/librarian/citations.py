@@ -9,7 +9,7 @@ from difflib import SequenceMatcher
 
 from librarian.store import Citation, Paper, Store
 
-INDENT = "    "  # matches ingest.INDENT: page_text() marks indented lines with it
+INDENT = "    "  # ingest.page_text() prefixes indented lines with this; defined here so both modules share it
 BRACKET_MARKER = re.compile(r"^\s*\[(\d{1,3})\]\s*")
 DOTTED_MARKER = re.compile(r"^\s*(\d{1,3})\.\s+(?=\S)")
 MIN_BRACKET_MARKERS = 2  # "[n]" at a line start is distinctive
