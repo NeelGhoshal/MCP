@@ -15,27 +15,27 @@ A session in Claude Code with the server connected.
 **1. Add a paper by arXiv id.** `add_paper` downloads *Attention Is All You Need*, splits it into
 44 searchable chunks and parses its 40 references. None are linked yet because the library was empty.
 
-![Adding the first paper](docs/screenshots/01-add-paper.png)
+![Adding the first paper](paper-librarian/docs/screenshots/01-add-paper.png)
 
 **2. Claude calls the MCP tool.** Asked to add BERT (`1810.04805`), Claude Code routes the request to
 the `paper-librarian` server.
 
-![Claude Code calling paper-librarian](docs/screenshots/02-calling-tool.png)
+![Claude Code calling paper-librarian](paper-librarian/docs/screenshots/02-calling-tool.png)
 
 **3. Add a second paper; citations link automatically.** BERT is added with 71 chunks and 56 references.
 One of them matches the Transformer paper already in the library, so the two papers are now linked.
 
-![Second paper added with a citation link](docs/screenshots/03-second-paper-linked.png)
+![Second paper added with a citation link](paper-librarian/docs/screenshots/03-second-paper-linked.png)
 
 **4. Ask a question; answers cite section and page.** Hybrid search finds the relevant passages in both
 papers, and Claude cites each claim, e.g. *(Attention Is All You Need, Positional Encoding, p.6)*.
 
-![Search answer with section and page citations](docs/screenshots/04-search-with-citations.png)
+![Search answer with section and page citations](paper-librarian/docs/screenshots/04-search-with-citations.png)
 
 **5. Save a note to a paper.** `add_note` attaches a summary to the paper; it is returned whenever the
 paper is looked up with `get_paper`.
 
-![Adding a note to a paper](docs/screenshots/05-add-note.png)
+![Adding a note to a paper](paper-librarian/docs/screenshots/05-add-note.png)
 
 ---
 
