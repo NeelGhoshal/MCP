@@ -1,0 +1,21 @@
+# Public demo of the paper-librarian MCP server (paper-librarian/demo).
+services:
+  - type: web
+    name: paper-librarian-demo
+    runtime: python
+    plan: free
+    rootDir: paper-librarian
+    # The library is seeded at build time; the free plan has no persistent disk, so papers added
+    # by visitors last until the next restart.
+    buildCommand: pip install -r demo/requirements.txt && pip install --no-deps . && python demo/seed.py
+    startCommand: cd demo && uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: HF_HOME  # keep the embedding model downloaded during build
+        value: /opt/render/project/src/paper-librarian/demo/data/hf
+      - key: LIBRARIAN_HOME
+        value: /opt/render/project/src/paper-librarian/demo/data
+      - key: GROQ_KEY
+        sync: false

@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paper Librarian · MCP demo</title>
+<meta name="description" content="Live demo of the paper-librarian MCP server: call its tools and watch the JSON-RPC traffic, or let an assistant use them.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f6f3ec; --panel:#fffdf8; --ink:#1d1b17; --muted:#6b655a; --line:#e3ddcf;
+  --accent:#8a3b12; --accent-soft:#f3e3d6; --ok:#2f6b3a; --err:#a1261b; --code-bg:#1f1d1a; --code-ink:#ece6d8;
+  --k:#e0a96d; --s:#a8c98a; --n:#8fb8de;
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#141310; --panel:#1c1a16; --ink:#ece6d8; --muted:#a39b8b; --line:#302c25;
+    --accent:#e79a62; --accent-soft:#3a2516; --ok:#7cc48a; --err:#ef8a7e; --code-bg:#0f0e0c;}
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 "IBM Plex Sans",system-ui,sans-serif}
+header{max-width:1200px;margin:0 auto;padding:40px 20px 8px}
+h1{font-family:"Source Serif 4",Georgia,serif;font-weight:600;font-size:clamp(28px,4vw,40px);margin:0 0 6px;letter-spacing:-.01em}
+.lede{color:var(--muted);max-width:760px;margin:0}
+.lede code{font-family:"IBM Plex Mono",monospace;font-size:13px;background:var(--accent-soft);padding:1px 5px;border-radius:4px;color:var(--ink)}
+nav.tabs{max-width:1200px;margin:22px auto 0;padding:0 20px;display:flex;gap:4px;border-bottom:1px solid var(--line)}
+nav.tabs button{all:unset;cursor:pointer;padding:10px 14px;color:var(--muted);font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px}
+nav.tabs button[aria-selected=true]{color:var(--ink);border-color:var(--accent)}
+main{max-width:1200px;margin:0 auto;padding:20px}
+.grid{display:grid;grid-template-columns:260px minmax(0,1fr);gap:20px}
+@media (max-width:820px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.tool-list{padding:6px;align-self:start}
+.tool-list button{all:unset;box-sizing:border-box;display:block;width:100%;cursor:pointer;padding:9px 10px;border-radius:7px}
+.tool-list button:hover{background:var(--accent-soft)}
+.tool-list button[aria-current=true]{background:var(--accent-soft)}
+.tname{font-family:"IBM Plex Mono",monospace;font-size:13.5px;font-weight:500}
+.badges{display:flex;gap:4px;flex-wrap:wrap;margin-top:3px}
+.badge{font-size:11px;padding:1px 6px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
+.badge.ro{color:var(--ok);border-color:currentColor}.badge.de{color:var(--err);border-color:currentColor}
+.badge.off{background:var(--line)}
+.detail{padding:18px 20px}
+.detail h2{font-family:"IBM Plex Mono",monospace;font-size:18px;margin:0 0 4px}
+.desc{color:var(--muted);white-space:pre-wrap;margin:0 0 14px}
+form .field{margin-bottom:12px}
+label{display:block;font-size:13px;font-weight:600;margin-bottom:4px}
+label .hint{font-weight:400;color:var(--muted)}
+input,select,textarea{width:100%;font:14px "IBM Plex Mono",monospace;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink)}
+textarea{min-height:44px;resize:vertical}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.btn{all:unset;cursor:pointer;background:var(--accent);color:#fff;font-weight:600;padding:9px 16px;border-radius:7px}
+.btn[disabled]{opacity:.5;cursor:wait}
+.btn.ghost{background:transparent;color:var(--accent);border:1px solid var(--line)}
+.examples{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 14px}
+.chip{all:unset;cursor:pointer;font-size:13px;padding:4px 10px;border:1px solid var(--line);border-radius:99px;color:var(--muted)}
+.chip:hover{color:var(--ink);border-color:var(--accent)}
+.wire{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+@media (max-width:1000px){.wire{grid-template-columns:1fr}}
+.wire h3,.step h3{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 6px;font-weight:600}
+pre.json{margin:0;background:var(--code-bg);color:var(--code-ink);border-radius:8px;padding:12px 14px;font:12.5px/1.5 "IBM Plex Mono",monospace;overflow:auto;max-height:460px;white-space:pre-wrap;word-break:break-word}
+.k{color:var(--k)}.s{color:var(--s)}.n{color:var(--n)}
+.meta{font-size:12.5px;color:var(--muted)}
+.status-ok{color:var(--ok)}.status-err{color:var(--err)}
+.ask{max-width:860px}
+.ask form{display:flex;gap:10px}
+.ask textarea{flex:1;font-family:"IBM Plex Sans",sans-serif;font-size:15px}
+.trace{margin-top:18px;display:flex;flex-direction:column;gap:10px}
+.bubble{padding:12px 16px;border-radius:10px;background:var(--panel);border:1px solid var(--line)}
+.bubble.user{background:var(--accent-soft);border-color:transparent;align-self:flex-end;max-width:85%}
+.answer{white-space:pre-wrap}
+details.step{border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+details.step summary{cursor:pointer;padding:10px 14px;font-family:"IBM Plex Mono",monospace;font-size:13px;list-style:none;display:flex;justify-content:space-between;gap:10px}
+details.step summary::-webkit-details-marker{display:none}
+details.step summary .arrow{color:var(--accent)}
+details.step .body{padding:0 14px 14px}
+.notice{padding:12px 14px;border-radius:8px;background:var(--accent-soft);font-size:14px}
+.how{max-width:860px}
+.how h2{font-family:"Source Serif 4",serif;font-size:24px;margin:0 0 8px}
+.how pre.json{max-height:none}
+footer{max-width:1200px;margin:0 auto;padding:24px 20px 40px;color:var(--muted);font-size:13px}
+a{color:var(--accent)}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;vertical-align:-2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Paper Librarian</h1>
+  <p class="lede">A live instance of the <code>paper-librarian</code> MCP server: a searchable library of research papers.
+  Call its tools directly and inspect the exact JSON-RPC messages a client like Claude exchanges with it,
+  or ask a question and watch an assistant decide which tools to call.</p>
+</header>
+<nav class="tabs" role="tablist">
+  <button role="tab" aria-selected="true" data-tab="explore">Tool explorer</button>
+  <button role="tab" aria-selected="false" data-tab="ask">Ask an assistant</button>
+  <button role="tab" aria-selected="false" data-tab="install">Use it in Claude</button>
+</nav>
+<main>
+  <section id="explore" class="grid">
+    <div class="panel tool-list" id="toolList"><span class="meta" style="padding:10px;display:block">Loading tools… (free hosting may take ~30 s to wake up)</span></div>
+    <div class="panel detail" id="toolDetail"></div>
+  </section>
+
+  <section id="ask" class="ask" hidden>
+    <div id="askNotice"></div>
+    <div class="examples" id="askExamples"></div>
+    <form id="askForm">
+      <textarea id="question" rows="2" placeholder="e.g. How does BERT's pre-training differ from the original Transformer?"></textarea>
+      <button class="btn" id="askBtn">Ask</button>
+    </form>
+    <div class="trace" id="trace"></div>
+  </section>
+
+  <section id="install" class="how" hidden>
+    <h2>Run it locally with Claude</h2>
+    <p>The server runs on your machine and keeps the library in <code>~/.librarian</code>. Add it to Claude Code:</p>
+    <pre class="json">claude mcp add paper-librarian -- uvx --from "git+https://github.com/NeelGhoshal/MCP#subdirectory=paper-librarian" paper-librarian</pre>
+    <p>or to Claude Desktop's <code>claude_desktop_config.json</code>:</p>
+    <pre class="json">{
+  "mcpServers": {
+    "paper-librarian": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/NeelGhoshal/MCP#subdirectory=paper-librarian", "paper-librarian"]
+    }
+  }
+}</pre>
+    <p class="meta">This demo shares one library among all visitors, so <code>remove_paper</code> and <code>add_note</code> are disabled,
+    <code>add_paper</code> accepts arXiv ids only, and anything added is lost when the server restarts.
+    Source: <a href="https://github.com/NeelGhoshal/MCP/tree/main/paper-librarian">github.com/NeelGhoshal/MCP</a>.</p>
+  </section>
+</main>
+<footer>Built on the MCP Python SDK 2.x. The “Ask” mode uses an open model through Groq to stand in for Claude; the tool calls are real.</footer>
+
+<script>
+const $ = (s, el=document) => el.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function hl(obj){
+  return esc(JSON.stringify(obj, null, 2))
+    .replace(/(&quot;(?:[^&]|&(?!quot;))*?&quot;)(\s*:)?/g, (m, str, colon) => colon ? `<span class="k">${str}</span>${colon}` : `<span class="s">${str}</span>`)
+    .replace(/\b(-?\d+(?:\.\d+)?|true|false|null)\b(?![^<]*<\/span>)/g, '<span class="n">$1</span>');
+}
+const EXAMPLES = {
+  search: {query: "how is attention computed between queries and keys"},
+  get_paper: {paper_id: "1810.04805"},
+  get_citations: {paper_id: "1706.03762"},
+  compare_papers: {paper_ids: ["1706.03762", "1810.04805"], aspects: ["training objective", "model size"]},
+  add_paper: {source: "1910.10683"},
+};
+const QUESTIONS = [
+  "What papers are in the library?",
+  "How does retrieval-augmented generation combine a retriever with a generator?",
+  "Compare how BERT and Sentence-BERT produce sentence embeddings.",
+  "Which papers in the library cite 'Attention Is All You Need'?",
+];
+let META, current;
+
+async function load(){
+  const r = await fetch('/api/tools'); META = await r.json();
+  const list = $('#toolList'); list.innerHTML = '';
+  for (const t of META.tools){
+    const a = t.annotations || {};
+    const b = document.createElement('button');
+    b.innerHTML = `<div class="tname">${esc(t.name)}</div><div class="badges">
+      ${a.readOnlyHint ? '<span class="badge ro">read-only</span>' : ''}
+      ${a.destructiveHint ? '<span class="badge de">destructive</span>' : ''}
+      ${a.openWorldHint ? '<span class="badge">network</span>' : ''}
+      ${META.blocked[t.name] ? '<span class="badge off">disabled here</span>' : ''}</div>`;
+    b.onclick = () => select(t.name);
+    b.dataset.name = t.name;
+    list.appendChild(b);
+  }
+  select('search');
+  setupAsk();
+}
+
+function fieldFor(name, schema, required, value){
+  const s = schema.anyOf ? (schema.anyOf.find(x => x.type !== 'null') || {}) : schema;
+  const opt = required ? '' : ' <span class="hint">(optional)</span>';
+  const id = `f_${name}`;
+  let input;
+  if (s.enum) input = `<select id="${id}" name="${name}">${s.enum.map(v => `<option ${v===(value??schema.default)?'selected':''}>${esc(v)}</option>`).join('')}</select>`;
+  else if (s.type === 'array') input = `<input id="${id}" name="${name}" data-type="array" placeholder="comma-separated" value="${esc((value||[]).join(', '))}">`;
+  else if (s.type === 'integer') input = `<input id="${id}" name="${name}" data-type="integer" type="number" placeholder="${schema.default ?? ''}" value="${value ?? ''}">`;
+  else input = `<textarea id="${id}" name="${name}" rows="1">${esc(value ?? '')}</textarea>`;
+  return `<div class="field"><label for="${id}">${esc(name)}${opt}</label>${input}</div>`;
+}
+
+function select(name){
+  current = META.tools.find(t => t.name === name);
+  document.querySelectorAll('#toolList button').forEach(b => b.setAttribute('aria-current', b.dataset.name === name));
+  const props = current.inputSchema.properties || {}, req = current.inputSchema.required || [];
+  const ex = EXAMPLES[name] || {};
+  $('#toolDetail').innerHTML = `
+    <h2>${esc(name)}</h2><p class="desc">${esc(current.description || '')}</p>
+    ${META.blocked[name] ? `<p class="notice">${esc(META.blocked[name])} You can still call it to see the error response.</p>` : ''}
+    <form id="callForm">${Object.entries(props).map(([k, s]) => fieldFor(k, s, req.includes(k), ex[k])).join('') || '<p class="meta">No arguments.</p>'}
+      <div class="row"><button class="btn" id="callBtn">Call tool</button><span class="meta" id="callMeta"></span></div>
+    </form>
+    <div class="wire" id="wire">
+      <div><h3>Request → server</h3><pre class="json" id="reqPane"></pre></div>
+      <div><h3>Response ← server</h3><pre class="json" id="resPane"><span class="meta">Press “Call tool”.</span></pre></div>
+    </div>`;
+  const preview = () => $('#reqPane').innerHTML = hl({jsonrpc:"2.0", id:"…", method:"tools/call", params:{name, arguments: readArgs()}});
+  $('#callForm').addEventListener('input', preview); preview();
+  $('#callForm').onsubmit = async e => {
+    e.preventDefault();
+    const btn = $('#callBtn'); btn.disabled = true;
+    $('#callMeta').innerHTML = '<span class="spinner"></span> calling…';
+    try{
+      const r = await fetch('/api/call', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({tool:name, arguments: readArgs()})});
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || r.statusText);
+      $('#reqPane').innerHTML = hl(d.request); $('#resPane').innerHTML = hl(d.response);
+      const err = d.response.result.isError;
+      $('#callMeta').innerHTML = `<span class="${err?'status-err':'status-ok'}">${err?'tool error':'ok'}</span> · ${d.ms} ms`;
+    }catch(err){ $('#callMeta').innerHTML = `<span class="status-err">${esc(err.message)}</span>`; }
+    btn.disabled = false;
+  };
+}
+
+function readArgs(){
+  const out = {}, props = current.inputSchema.properties || {};
+  for (const el of document.querySelectorAll('#callForm [name]')){
+    const v = el.value.trim(); if (!v) continue;
+    if (el.dataset.type === 'array') out[el.name] = v.split(',').map(x => x.trim()).filter(Boolean);
+    else if (el.dataset.type === 'integer') out[el.name] = parseInt(v, 10);
+    else out[el.name] = v;
+  }
+  return out;
+}
+
+function setupAsk(){
+  if (!META.ask_enabled){ $('#askNotice').innerHTML = '<p class="notice">Ask mode isn’t configured on this server.</p>'; $('#askForm').hidden = true; return; }
+  $('#askExamples').innerHTML = QUESTIONS.map(q => `<button class="chip">${esc(q)}</button>`).join('');
+  $('#askExamples').onclick = e => { if (e.target.matches('.chip')){ $('#question').value = e.target.textContent; $('#askForm').requestSubmit(); } };
+  $('#question').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); $('#askForm').requestSubmit(); } });
+  $('#askForm').onsubmit = async e => {
+    e.preventDefault();
+    const q = $('#question').value.trim(); if (!q) return;
+    const btn = $('#askBtn'); btn.disabled = true;
+    const trace = $('#trace');
+    trace.innerHTML = `<div class="bubble user">${esc(q)}</div><div class="meta" id="thinking"><span class="spinner"></span> the assistant is calling tools…</div>`;
+    try{
+      const r = await fetch('/api/ask', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({question:q})});
+      const d = await r.json(); if (!r.ok) throw new Error(d.error || r.statusText);
+      $('#thinking').remove();
+      d.trace.forEach((s, i) => {
+        if (s.type === 'tool'){
+          const err = s.response.result.isError;
+          trace.insertAdjacentHTML('beforeend', `<details class="step"><summary><span><span class="arrow">→</span> ${esc(s.name)}(${esc(JSON.stringify(s.request.params.arguments))})</span><span class="${err?'status-err':'status-ok'}">${err?'error':'ok'} · ${s.ms} ms</span></summary>
+            <div class="body wire" style="margin-top:0"><div><h3>Request</h3><pre class="json">${hl(s.request)}</pre></div><div><h3>Response</h3><pre class="json">${hl(s.response)}</pre></div></div></details>`);
+        } else {
+          trace.insertAdjacentHTML('beforeend', `<div class="bubble"><div class="meta">${s.type === 'error' ? 'error' : esc(d.model)}</div><div class="answer ${s.type==='error'?'status-err':''}">${esc(s.text)}</div></div>`);
+        }
+      });
+    }catch(err){ $('#thinking') && $('#thinking').remove(); trace.insertAdjacentHTML('beforeend', `<p class="notice status-err">${esc(err.message)}</p>`); }
+    btn.disabled = false;
+  };
+}
+
+document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav.tabs button').forEach(x => x.setAttribute('aria-selected', x === b));
+  for (const id of ['explore','ask','install']) $('#'+id).hidden = id !== b.dataset.tab;
+});
+load().catch(e => $('#toolList').innerHTML = `<p class="status-err" style="padding:10px">Failed to load: ${esc(e.message)}</p>`);
+</script>
+</body>
+</html>

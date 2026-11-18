@@ -1,0 +1,12 @@
+# Hosted demo deps: the package's own deps minus sentence-transformers/torch (too big for 512 MB),
+# plus onnxruntime for the same embedding model. Install the package itself with --no-deps.
+mcp>=2.3,<3
+pymupdf>=1.24
+arxiv>=2.1
+sqlite-vec>=0.1.6
+requests>=2.31
+onnxruntime>=1.18
+tokenizers>=0.19
+huggingface_hub>=0.23
+numpy>=1.26
+uvicorn>=0.30
