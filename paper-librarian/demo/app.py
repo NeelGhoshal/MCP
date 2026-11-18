@@ -14,6 +14,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
+import sqlite_shim  # noqa: F401  (must precede librarian imports)
 import anyio
 import requests
 from mcp import Client

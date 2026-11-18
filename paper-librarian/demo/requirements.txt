@@ -10,3 +10,4 @@ tokenizers>=0.19
 huggingface_hub>=0.23
 numpy>=1.26
 uvicorn>=0.30
+pysqlite3-binary>=0.5; sys_platform == "linux"

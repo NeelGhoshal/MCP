@@ -8,6 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+import sqlite_shim  # noqa: F401,E402  (must precede librarian imports)
 from librarian.ingest import ingest  # noqa: E402
 from librarian.store import Store  # noqa: E402
 from onnx_embed import OnnxEmbedder  # noqa: E402
