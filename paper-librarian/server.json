@@ -1,0 +1,31 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.NeelGhoshal/paper-librarian",
+  "description": "Local searchable library of research papers (arXiv + PDFs) with cited answers and linked references",
+  "repository": {
+    "url": "https://github.com/NeelGhoshal/MCP",
+    "source": "github",
+    "id": "1430152696",
+    "subfolder": "paper-librarian"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "paper-librarian",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "description": "Folder for the library database and downloaded PDFs (default: ~/.librarian)",
+          "isRequired": false,
+          "format": "filepath",
+          "isSecret": false,
+          "name": "LIBRARIAN_HOME"
+        }
+      ]
+    }
+  ]
+}

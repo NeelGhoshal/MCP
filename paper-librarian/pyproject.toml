@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "MCP server for a local, searchable library of research papers"
 readme = "README.md"
 requires-python = ">=3.11"
+keywords = ["mcp", "claude", "research", "papers", "arxiv", "semantic-search"]
 dependencies = [
     "mcp>=2.3,<3",
     "pymupdf>=1.24",
@@ -12,6 +13,10 @@ dependencies = [
     "sqlite-vec>=0.1.6",
     "requests>=2.31",
 ]
+
+[project.urls]
+Homepage = "https://github.com/NeelGhoshal/MCP/tree/main/paper-librarian"
+Repository = "https://github.com/NeelGhoshal/MCP"
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]

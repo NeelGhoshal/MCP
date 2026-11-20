@@ -27,6 +27,7 @@ from starlette.staticfiles import StaticFiles
 from librarian.ingest import parse_arxiv_id
 from librarian.server import INSTRUCTIONS, create_server
 from onnx_embed import OnnxEmbedder
+from remote_mcp import build_public_mcp
 
 HERE = Path(__file__).parent
 DB_PATH = Path(os.environ.get("DEMO_DB", HERE / "data" / "library.db"))
@@ -45,12 +46,16 @@ ASK_HIDDEN = {"add_paper"}
 
 state: dict[str, Any] = {}
 
+# One model in memory, shared by the demo's in-process server and the public /mcp endpoint.
+EMBEDDER = OnnxEmbedder()
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+public_mcp, public_mcp_route = build_public_mcp(DB_PATH, EMBEDDER)
+
 
 @asynccontextmanager
 async def lifespan(_app: Starlette):
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    server = create_server(DB_PATH, embedder=OnnxEmbedder())
-    async with Client(server) as client:
+    server = create_server(DB_PATH, embedder=EMBEDDER)
+    async with public_mcp.session_manager.run(), Client(server) as client:
         state["client"] = client
         state["tools"] = (await client.list_tools()).tools
         state["next_id"] = 1
@@ -232,6 +237,7 @@ app = Starlette(
     routes=[
         Route("/", index),
         Route("/healthz", health),
+        public_mcp_route,
         Route("/api/tools", tools),
         Route("/api/call", call, methods=["POST"]),
         Route("/api/ask", ask, methods=["POST"]),

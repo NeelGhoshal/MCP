@@ -1,10 +1,48 @@
 # Paper Librarian
 
+<!-- mcp-name: io.github.NeelGhoshal/paper-librarian -->
+
 An MCP server that gives Claude a local, searchable library of research papers (arXiv + PDFs).
 Built on the **MCP Python SDK 2.x** (`MCPServer`, the 2.x successor to `FastMCP`).
 
 Add papers by arXiv id or PDF path, then ask questions about them. Answers cite the paper, section
 and page, and references between papers in the library are linked in both directions.
+
+## Get it
+
+Paper Librarian is public and free to use. It runs on your own machine, so your library, PDFs and
+embedding model stay local. There are two ways to get it:
+
+### 1. Install from PyPI
+
+Package: [`paper-librarian`](https://pypi.org/project/paper-librarian/). Needs [uv](https://docs.astral.sh/uv/).
+
+**Claude Code**, available in every project:
+
+```bash
+claude mcp add paper-librarian --scope user -- uvx paper-librarian
+```
+
+Or enable it only for the project you're currently in by leaving out `--scope user`:
+
+```bash
+claude mcp add paper-librarian -- uvx paper-librarian
+```
+
+**Claude Desktop**: add this to `claude_desktop_config.json` and restart the app:
+
+```json
+{ "mcpServers": { "paper-librarian": { "command": "uvx", "args": ["paper-librarian"] } } }
+```
+
+### 2. Find it in the MCP Registry
+
+It's listed in the official [MCP Registry](https://registry.modelcontextprotocol.io) as
+`io.github.NeelGhoshal/paper-librarian`. MCP clients and server directories that read the registry
+can discover and install it from there; the listing points to the same PyPI package.
+
+The first launch is slow: it installs the dependencies and downloads a ~90 MB embedding model.
+Set `LIBRARIAN_HOME` to choose where the library is stored (default `~/.librarian`).
 
 ---
 
