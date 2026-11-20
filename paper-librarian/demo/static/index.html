@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Paper Librarian · MCP demo</title>
-<meta name="description" content="Live demo of the paper-librarian MCP server: call its tools and watch the JSON-RPC traffic, or let an assistant use them.">
+<meta name="description" content="Ask questions about research papers: a free open LLM answers by calling the paper-librarian MCP server. Nothing to install.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap" rel="stylesheet">
 <style>
@@ -62,6 +62,11 @@ pre.json{margin:0;background:var(--code-bg);color:var(--code-ink);border-radius:
 .meta{font-size:12.5px;color:var(--muted)}
 .status-ok{color:var(--ok)}.status-err{color:var(--err)}
 .ask{max-width:860px}
+.ask h2{font-family:"Source Serif 4",serif;font-size:24px;margin:0 0 4px}
+.ask .sub{color:var(--muted);margin:0 0 14px}
+.library{font-size:13.5px;color:var(--muted);margin:0 0 14px}
+.library b{color:var(--ink);font-weight:500}
+.examples-label{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:0}
 .ask form{display:flex;gap:10px}
 .ask textarea{flex:1;font-family:"IBM Plex Sans",sans-serif;font-size:15px}
 .trace{margin-top:18px;display:flex;flex-direction:column;gap:10px}
@@ -86,26 +91,29 @@ a{color:var(--accent)}
 <body>
 <header>
   <h1>Paper Librarian</h1>
-  <p class="lede">A live instance of the <code>paper-librarian</code> MCP server: a searchable library of research papers.
-  Call its tools directly and inspect the exact JSON-RPC messages a client like Claude exchanges with it,
-  or ask a question and watch an assistant decide which tools to call.</p>
+  <p class="lede">Ask questions about research papers. A free open LLM answers by calling the real
+  <code>paper-librarian</code> MCP server, and cites the paper, section and page. Nothing to install, no sign-up.</p>
 </header>
 <nav class="tabs" role="tablist">
-  <button role="tab" aria-selected="true" data-tab="explore">Tool explorer</button>
-  <button role="tab" aria-selected="false" data-tab="ask">Ask an assistant</button>
+  <button role="tab" aria-selected="true" data-tab="ask">Ask</button>
+  <button role="tab" aria-selected="false" data-tab="explore">Tool explorer</button>
   <button role="tab" aria-selected="false" data-tab="install">Use it in Claude</button>
 </nav>
 <main>
-  <section id="explore" class="grid">
+  <section id="explore" class="grid" hidden>
     <div class="panel tool-list" id="toolList"><span class="meta" style="padding:10px;display:block">Loading tools… (free hosting may take ~30 s to wake up)</span></div>
     <div class="panel detail" id="toolDetail"></div>
   </section>
 
-  <section id="ask" class="ask" hidden>
+  <section id="ask" class="ask">
+    <h2>Ask the librarian</h2>
+    <p class="sub">Type a question or pick an example. You'll see each MCP tool call the model makes, then its answer.</p>
+    <p class="library" id="library"><span class="spinner"></span> Loading the library… (free hosting can take ~30 s to wake up)</p>
     <div id="askNotice"></div>
+    <p class="examples-label" id="examplesLabel" hidden>Try one</p>
     <div class="examples" id="askExamples"></div>
     <form id="askForm">
-      <textarea id="question" rows="2" placeholder="e.g. How does BERT's pre-training differ from the original Transformer?"></textarea>
+      <textarea id="question" rows="2" placeholder="Ask about the papers in the library…"></textarea>
       <button class="btn" id="askBtn">Ask</button>
     </form>
     <div class="trace" id="trace"></div>
@@ -113,17 +121,16 @@ a{color:var(--accent)}
 
   <section id="install" class="how" hidden>
     <h2>Run it locally with Claude</h2>
-    <p>The server runs on your machine and keeps the library in <code>~/.librarian</code>. Add it to Claude Code:</p>
-    <pre class="json">claude mcp add paper-librarian -- uvx --from "git+https://github.com/NeelGhoshal/MCP#subdirectory=paper-librarian" paper-librarian</pre>
-    <p>or to Claude Desktop's <code>claude_desktop_config.json</code>:</p>
-    <pre class="json">{
-  "mcpServers": {
-    "paper-librarian": {
-      "command": "uvx",
-      "args": ["--from", "git+https://github.com/NeelGhoshal/MCP#subdirectory=paper-librarian", "paper-librarian"]
-    }
-  }
-}</pre>
+    <p>Install from PyPI (needs <a href="https://docs.astral.sh/uv/">uv</a>). The server runs on your machine and keeps
+    your own library in <code>~/.librarian</code>, so you can add any arXiv paper or PDF. Claude Code:</p>
+    <pre class="json">claude mcp add paper-librarian -- uvx paper-librarian</pre>
+    <p>Claude Desktop, in <code>claude_desktop_config.json</code>:</p>
+    <pre class="json">{ "mcpServers": { "paper-librarian": { "command": "uvx", "args": ["paper-librarian"] } } }</pre>
+    <h2 style="margin-top:24px">Or connect to this server by URL</h2>
+    <p>Search this demo's library from Claude without installing anything. In claude.ai or Claude Desktop, open
+    Settings → Connectors → <em>Add custom connector</em> and paste the URL below. In Claude Code:</p>
+    <pre class="json" id="remoteCmd">claude mcp add --transport http paper-librarian https://&lt;this-site&gt;/mcp</pre>
+    <p class="meta">The URL endpoint is read-only: you can search and read the papers already here, but not add or remove them.</p>
     <p class="meta">This demo shares one library among all visitors, so <code>remove_paper</code> and <code>add_note</code> are disabled,
     <code>add_paper</code> accepts arXiv ids only, and anything added is lost when the server restarts.
     Source: <a href="https://github.com/NeelGhoshal/MCP/tree/main/paper-librarian">github.com/NeelGhoshal/MCP</a>.</p>
@@ -148,8 +155,10 @@ const EXAMPLES = {
 };
 const QUESTIONS = [
   "What papers are in the library?",
-  "How does retrieval-augmented generation combine a retriever with a generator?",
+  "Explain how self-attention works, with citations.",
+  "How does BERT's pre-training differ from the original Transformer?",
   "Compare how BERT and Sentence-BERT produce sentence embeddings.",
+  "How does retrieval-augmented generation combine a retriever with a generator?",
   "Which papers in the library cite 'Attention Is All You Need'?",
 ];
 let META, current;
@@ -171,6 +180,18 @@ async function load(){
   }
   select('search');
   setupAsk();
+  showLibrary();
+}
+
+async function showLibrary(){
+  try{
+    const r = await fetch('/api/call', {method:'POST', headers:{'content-type':'application/json'},
+      body: JSON.stringify({tool:'list_papers', arguments:{}})});
+    const papers = ((await r.json()).response.result.structuredContent || {}).papers || [];
+    $('#library').innerHTML = papers.length
+      ? `<b>In the library (${papers.length}):</b> ${papers.map(p => esc(p.title)).join(' · ')}`
+      : 'The library is empty.';
+  }catch{ $('#library').textContent = ''; }
 }
 
 function fieldFor(name, schema, required, value){
@@ -230,7 +251,11 @@ function readArgs(){
 }
 
 function setupAsk(){
-  if (!META.ask_enabled){ $('#askNotice').innerHTML = '<p class="notice">Ask mode isn’t configured on this server.</p>'; $('#askForm').hidden = true; return; }
+  if (!META.ask_enabled){
+    $('#askNotice').innerHTML = '<p class="notice">Ask mode isn’t configured on this server. Use the Tool explorer to call the MCP tools directly.</p>';
+    $('#askForm').hidden = true; return;
+  }
+  $('#examplesLabel').hidden = false;
   $('#askExamples').innerHTML = QUESTIONS.map(q => `<button class="chip">${esc(q)}</button>`).join('');
   $('#askExamples').onclick = e => { if (e.target.matches('.chip')){ $('#question').value = e.target.textContent; $('#askForm').requestSubmit(); } };
   $('#question').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); $('#askForm').requestSubmit(); } });
@@ -258,6 +283,7 @@ function setupAsk(){
   };
 }
 
+$('#remoteCmd').textContent = `claude mcp add --transport http paper-librarian ${location.origin}/mcp`;
 document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => {
   document.querySelectorAll('nav.tabs button').forEach(x => x.setAttribute('aria-selected', x === b));
   for (const id of ['explore','ask','install']) $('#'+id).hidden = id !== b.dataset.tab;

@@ -44,6 +44,26 @@ can discover and install it from there; the listing points to the same PyPI pack
 The first launch is slow: it installs the dependencies and downloads a ~90 MB embedding model.
 Set `LIBRARIAN_HOME` to choose where the library is stored (default `~/.librarian`).
 
+### Example prompts
+
+Once it's connected, ask Claude in plain language:
+
+- *Add arXiv paper 1706.03762 to my library.*
+- *Add 1810.04805 and 1908.10084 too.*
+- *What papers are in my library?*
+- *Explain how self-attention works, with citations.*
+- *How does BERT's pre-training differ from the original Transformer?*
+- *Compare BERT and Sentence-BERT on how they produce sentence embeddings, as a table.*
+- *Which papers in my library cite "Attention Is All You Need"?*
+- *Add a note to the BERT paper: "re-read section 3.1 before the meeting".*
+- *Add the PDF at ~/Downloads/my-paper.pdf.*
+
+### Try it in the browser
+
+The hosted demo has an **Ask** box where a free open model (via Groq) answers questions by calling this
+MCP server. You don't need to install anything, and every tool call is shown. The demo library is
+shared and read-mostly: you can add arXiv papers, but not remove papers or add notes.
+
 ---
 
 ## Demo
