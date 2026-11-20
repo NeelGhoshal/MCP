@@ -28,6 +28,7 @@ from librarian.ingest import parse_arxiv_id
 from librarian.server import INSTRUCTIONS, create_server
 from onnx_embed import OnnxEmbedder
 from remote_mcp import build_public_mcp
+from seed import PAPERS as STARTER_PAPERS
 
 HERE = Path(__file__).parent
 DB_PATH = Path(os.environ.get("DEMO_DB", HERE / "data" / "library.db"))
@@ -37,12 +38,18 @@ MAX_PAPERS = int(os.environ.get("DEMO_MAX_PAPERS", "12"))
 MAX_STEPS = 6  # LLM turns that may call tools; one more turn is forced to answer
 TOOL_RESULT_CHARS = 4000  # hard cap; Groq free tier allows ~8k tokens/minute
 
-# Tools that would let one visitor change or deface the shared library for everyone else.
-BLOCKED = {"remove_paper": "Removing papers is disabled in the public demo.",
-           "add_note": "Notes are disabled in the public demo (the library is shared by all visitors)."}
+# The library is shared by every visitor, so the tools that change it work with limits.
+STARTER_IDS = {f"arxiv:{a}" for a in STARTER_PAPERS}
+MAX_NOTE_CHARS = 280
+LIMITS = {
+    "add_paper": "arXiv ids or URLs only (no local files on this server). Big papers can take up to a minute.",
+    "remove_paper": f"Only papers visitors added can be removed; the {len(STARTER_IDS)} starter papers are protected.",
+    "add_note": f"Notes are shared with every visitor and limited to {MAX_NOTE_CHARS} characters.",
+}
+BLOCKED: dict[str, str] = {}  # every tool is callable; kept for API compatibility
 
-# Hidden from the assistant: models tend to re-add papers already present. Still callable in the explorer.
-ASK_HIDDEN = {"add_paper"}
+# Hidden from the assistant: it should answer questions, not change the shared library.
+ASK_HIDDEN = {"add_paper", "remove_paper", "add_note"}
 
 state: dict[str, Any] = {}
 
@@ -67,12 +74,22 @@ def _rpc_id() -> int:
     return state["next_id"]
 
 
+def _paper_key(paper_id: str) -> str:
+    """Normalise "1706.03762", "arxiv:1706.03762" or an arXiv URL to the library's "arxiv:<id>" form."""
+    raw = paper_id.strip()
+    arxiv = parse_arxiv_id(raw.removeprefix("arxiv:"))
+    return f"arxiv:{arxiv}" if arxiv else raw
+
+
 def _guard(name: str, args: dict[str, Any]) -> str | None:
-    if name in BLOCKED:
-        return BLOCKED[name]
     if name == "add_paper":
         if not parse_arxiv_id(str(args.get("source", ""))):
             return "The public demo only adds papers by arXiv id or URL (no local files on this server)."
+    if name == "remove_paper" and _paper_key(str(args.get("paper_id", ""))) in STARTER_IDS:
+        return ("The starter papers are protected in the public demo. "
+                "You can remove papers that visitors added (see list_papers).")
+    if name == "add_note" and len(str(args.get("text", "")).strip()) > MAX_NOTE_CHARS:
+        return f"Notes are limited to {MAX_NOTE_CHARS} characters in the public demo."
     return None
 
 
@@ -131,6 +148,7 @@ async def tools(_request: Request):
         "server": {"name": "paper-librarian", "instructions": INSTRUCTIONS},
         "ask_enabled": bool(GROQ_KEY),
         "blocked": BLOCKED,
+        "limits": LIMITS,
         "tools": [t.model_dump(mode="json", by_alias=True, exclude_none=True) for t in state["tools"]],
     })
 

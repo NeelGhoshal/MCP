@@ -5,6 +5,8 @@ Torch alone needs more memory than Render's free tier (512 MB) allows, so the ho
 
 from __future__ import annotations
 
+import ctypes
+import ctypes.util
 import os
 import threading
 
@@ -12,7 +14,24 @@ import numpy as np
 
 MODEL_REPO = "sentence-transformers/all-MiniLM-L6-v2"
 MAX_TOKENS = 256  # the model's max_seq_length
-BATCH = 8  # small batches keep peak memory low on the free tier
+# Small batches keep peak memory low on the free tier; mean pooling ignores padding, so vectors are unchanged.
+BATCH = int(os.environ.get("EMBED_BATCH", "4"))
+
+
+def _malloc_trim():
+    """Return glibc's freed heap pages to the OS (no-op elsewhere).
+
+    After PDF extraction frees its buffers the heap is fragmented, and each embedding batch's
+    temporaries would otherwise grow resident memory instead of reusing it."""
+    name = ctypes.util.find_library("c")
+    try:
+        fn = ctypes.CDLL(name).malloc_trim if name else None
+    except (OSError, AttributeError):
+        fn = None
+    return (lambda: fn(0)) if fn else (lambda: None)
+
+
+trim = _malloc_trim()
 
 
 class OnnxEmbedder:
@@ -38,6 +57,7 @@ class OnnxEmbedder:
                 tok.enable_padding()
                 opts = ort.SessionOptions()
                 opts.intra_op_num_threads = int(os.environ.get("EMBED_THREADS", "1"))
+                opts.inter_op_num_threads = 1
                 # The default arena grows to fit the largest batch and never shrinks; on a 512 MB
                 # instance that alone OOM-kills add_paper. Allocate per run instead.
                 opts.enable_cpu_mem_arena = False
@@ -54,6 +74,7 @@ class OnnxEmbedder:
         session, tok = self._load()
         wanted = {i.name for i in session.get_inputs()}
         out: list[list[float]] = []
+        trim()
         for start in range(0, len(texts), BATCH):
             enc = tok.encode_batch(texts[start : start + BATCH])
             ids = np.array([e.ids for e in enc], dtype=np.int64)
@@ -64,4 +85,6 @@ class OnnxEmbedder:
             pooled = (hidden * m).sum(1) / np.clip(m.sum(1), 1e-9, None)
             pooled /= np.clip(np.linalg.norm(pooled, axis=1, keepdims=True), 1e-12, None)
             out.extend(pooled.tolist())
+            del hidden, feeds
+            trim()
         return out

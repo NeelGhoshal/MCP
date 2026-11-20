@@ -19,3 +19,11 @@ services:
         value: /opt/render/project/src/paper-librarian/demo/data
       - key: GROQ_KEY
         sync: false
+      # Keep add_paper under the free plan's 512 MB: the host reports many CPUs, and per-thread
+      # malloc arenas / tokenizer threads would otherwise multiply memory use.
+      - key: MALLOC_ARENA_MAX
+        value: "2"
+      - key: TOKENIZERS_PARALLELISM
+        value: "false"
+      - key: OMP_NUM_THREADS
+        value: "1"

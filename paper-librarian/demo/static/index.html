@@ -28,7 +28,7 @@ nav.tabs button{all:unset;cursor:pointer;padding:16px 12px 14px;color:var(--mute
 nav.tabs button[aria-selected=true]{color:var(--ink);border-color:var(--accent)}
 code{font-family:"IBM Plex Mono",monospace;font-size:13px;background:var(--accent-soft);padding:1px 5px;border-radius:4px}
 main{max-width:1200px;margin:0 auto;padding:20px}
-.grid{display:grid;grid-template-columns:260px minmax(0,1fr);gap:20px}
+.grid{display:grid;grid-template-columns:300px minmax(0,1fr);gap:20px;padding-top:12px}
 @media (max-width:820px){.grid{grid-template-columns:1fr}}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px}
 .tool-list{padding:6px;align-self:start}
@@ -40,7 +40,43 @@ main{max-width:1200px;margin:0 auto;padding:20px}
 .badge{font-size:11px;padding:1px 6px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
 .badge.ro{color:var(--ok);border-color:currentColor}.badge.de{color:var(--err);border-color:currentColor}
 .badge.off{background:var(--line)}
-.detail{padding:18px 20px}
+.detail{padding:20px 22px}
+.tsum{font-size:12.5px;color:var(--muted);line-height:1.4;margin-top:2px}
+.tool-summary{font-size:16px;margin:4px 0 10px}
+.limit{font-size:13px;color:var(--muted);background:var(--accent-soft);padding:6px 10px;border-radius:7px;display:inline-block;margin:0 0 6px}
+h3.sec{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px;font-weight:600}
+.ex-list{display:grid;gap:8px}
+.ex{all:unset;box-sizing:border-box;cursor:pointer;display:block;padding:11px 14px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.ex:hover{border-color:var(--accent);background:var(--accent-soft)}
+.ex[disabled]{opacity:.55;cursor:wait}
+.ex-label{display:block;font-weight:500}
+.ex-args{display:block;font:12px/1.45 "IBM Plex Mono",monospace;color:var(--muted);background:none;padding:0;margin-top:3px;word-break:break-word}
+.result{margin-top:18px;border-top:1px solid var(--line);padding-top:4px}
+.result-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:8px 0;background:var(--bg)}
+.card-head{margin-bottom:2px}
+.cite{display:inline-block;font-size:12px;color:var(--accent);font-family:"IBM Plex Mono",monospace;margin-right:6px}
+.passage{margin:6px 0 0;white-space:pre-wrap;line-height:1.55}
+h4.sect{font-size:13px;margin:14px 0 4px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip[disabled]{opacity:.55}
+.note{margin:4px 0;padding:6px 10px;border-left:3px solid var(--accent);background:var(--panel)}
+.cited{margin:6px 0}
+ol.refs{margin:4px 0 0;padding-left:28px;font-size:13px;max-height:320px;overflow:auto}
+ol.refs li{margin:3px 0}
+ol.refs li.in-lib{font-weight:500}
+.cmp-wrap{overflow-x:auto}
+table.cmp,table.plist{border-collapse:collapse;width:100%;font-size:13.5px}
+table.cmp th,table.cmp td,table.plist td{border:1px solid var(--line);padding:8px 10px;vertical-align:top;text-align:left}
+table.cmp thead th{background:var(--accent-soft)}
+table.cmp td{min-width:220px}
+table.cmp hr{border:0;border-top:1px dashed var(--line);margin:8px 0}
+.facts{margin:8px 0;padding-left:20px}
+.ok-notice{border-left:3px solid var(--ok)}
+.link{all:unset;cursor:pointer;color:var(--accent);font-weight:500}
+details.raw,details.custom{margin-top:14px;border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+details.raw summary,details.custom summary{cursor:pointer;font-weight:500;color:var(--muted)}
+details.custom form{margin-top:12px}
 .detail h2{font-family:"IBM Plex Mono",monospace;font-size:18px;margin:0 0 4px}
 .desc{color:var(--muted);white-space:pre-wrap;margin:0 0 14px}
 form .field{margin-bottom:12px}
@@ -153,13 +189,58 @@ function hl(obj){
     .replace(/(&quot;(?:[^&]|&(?!quot;))*?&quot;)(\s*:)?/g, (m, str, colon) => colon ? `<span class="k">${str}</span>${colon}` : `<span class="s">${str}</span>`)
     .replace(/\b(-?\d+(?:\.\d+)?|true|false|null)\b(?![^<]*<\/span>)/g, '<span class="n">$1</span>');
 }
-const EXAMPLES = {
-  search: {query: "how is attention computed between queries and keys"},
-  get_paper: {paper_id: "1810.04805"},
-  get_citations: {paper_id: "1706.03762"},
-  compare_papers: {paper_ids: ["1706.03762", "1810.04805"], aspects: ["training objective", "model size"]},
-  add_paper: {source: "1910.10683"},
+// What each tool is for, in plain words, plus ready-made calls against the demo library.
+const TOOLS = {
+  search: {
+    summary: "Find passages across every paper, by meaning and by keyword. Each hit cites the paper, section and page.",
+    examples: [
+      {label: "How is attention computed between queries and keys?", args: {query: "how is attention computed between queries and keys", limit: 4}},
+      {label: "Exact phrase: “masked language model”", args: {query: "masked language model", mode: "keyword", limit: 4}},
+      {label: "Only papers from 2020 on: jointly training a retriever and generator", args: {query: "retriever and generator trained jointly", year_from: 2020, limit: 4}},
+    ]},
+  get_paper: {
+    summary: "Open one paper: its authors, abstract, section list and notes, or the full text of a single section.",
+    examples: [
+      {label: "Overview of BERT", args: {paper_id: "1810.04805"}},
+      {label: "Read the “Scaled Dot-Product Attention” section", args: {paper_id: "1706.03762", section: "Scaled Dot-Product Attention"}},
+      {label: "Overview of Retrieval-Augmented Generation", args: {paper_id: "2005.11401"}},
+    ]},
+  get_citations: {
+    summary: "A paper's reference list (marking ones already in the library) and which library papers cite it.",
+    examples: [
+      {label: "Who cites “Attention Is All You Need”?", args: {paper_id: "1706.03762"}},
+      {label: "What does Sentence-BERT cite?", args: {paper_id: "1908.10084"}},
+    ]},
+  compare_papers: {
+    summary: "Pull the most relevant passages from each paper for each aspect: the raw material for a comparison table.",
+    examples: [
+      {label: "BERT vs Sentence-BERT: sentence embeddings & training data", args: {paper_ids: ["1810.04805", "1908.10084"], aspects: ["sentence embeddings", "training data"]}},
+      {label: "Transformer vs BERT: training objective & model size", args: {paper_ids: ["1706.03762", "1810.04805"], aspects: ["training objective", "model size"]}},
+    ]},
+  list_papers: {
+    summary: "Everything in the library, newest first.",
+    examples: [{label: "List the library", args: {}}]},
+  add_paper: {
+    summary: "Download a paper from arXiv, split it into searchable chunks and link its references to papers already here.",
+    examples: [
+      {label: "Add DistilBERT (1910.01108), ~10 s", args: {source: "1910.01108"}},
+      {label: "Add RoBERTa by arXiv URL", args: {source: "https://arxiv.org/abs/1907.11692"}},
+      {label: "Add a paper that's already here (no duplicate)", args: {source: "1706.03762"}},
+    ]},
+  add_note: {
+    summary: "Attach a short note to a paper. Notes come back with get_paper.",
+    examples: [
+      {label: "Note on BERT", args: {paper_id: "1810.04805", text: "Key idea: masked LM + next-sentence prediction, then fine-tune."}},
+      {label: "Note on RAG", args: {paper_id: "2005.11401", text: "Compare RAG-Sequence vs RAG-Token on open-domain QA."}},
+    ]},
+  remove_paper: {
+    summary: "Remove a paper and its index, notes and citation links.",
+    examples: [
+      {label: "Remove DistilBERT (add it first)", args: {paper_id: "1910.01108"}},
+      {label: "Try removing a protected starter paper", args: {paper_id: "1706.03762"}},
+    ]},
 };
+const ORDER = ["search", "get_paper", "get_citations", "compare_papers", "list_papers", "add_paper", "add_note", "remove_paper"];
 const QUESTIONS = [
   "What papers are in the library?",
   "Explain how self-attention works, with citations.",
@@ -189,16 +270,16 @@ async function api(path, body){
 async function load(){
   META = await api('/api/tools');
   const list = $('#toolList'); list.innerHTML = '';
-  for (const t of META.tools){
-    const a = t.annotations || {};
+  const byName = Object.fromEntries(META.tools.map(t => [t.name, t]));
+  const names = [...ORDER.filter(n => byName[n]), ...META.tools.map(t => t.name).filter(n => !ORDER.includes(n))];
+  for (const name of names){
+    const a = byName[name].annotations || {};
     const b = document.createElement('button');
-    b.innerHTML = `<div class="tname">${esc(t.name)}</div><div class="badges">
-      ${a.readOnlyHint ? '<span class="badge ro">read-only</span>' : ''}
-      ${a.destructiveHint ? '<span class="badge de">destructive</span>' : ''}
-      ${a.openWorldHint ? '<span class="badge">network</span>' : ''}
-      ${META.blocked[t.name] ? '<span class="badge off">disabled here</span>' : ''}</div>`;
-    b.onclick = () => select(t.name);
-    b.dataset.name = t.name;
+    b.innerHTML = `<div class="tname">${esc(name)}</div>
+      <div class="tsum">${esc((TOOLS[name] || {}).summary || '')}</div>
+      <div class="badges">${a.readOnlyHint ? '<span class="badge ro">read-only</span>' : '<span class="badge">changes library</span>'}</div>`;
+    b.onclick = () => select(name);
+    b.dataset.name = name;
     list.appendChild(b);
   }
   select('search');
@@ -211,58 +292,174 @@ async function showLibrary(){
     const d = await api('/api/call', {tool:'list_papers', arguments:{}});
     const papers = (d.response.result.structuredContent || {}).papers || [];
     $('#library').innerHTML = papers.length
-      ? `<span class="lib-label">In the library</span>${papers.map(p => `<span class="pill">${esc(p.title)}</span>`).join('')}`
+      ? `<span class="lib-label">Papers in the library</span>${papers.map(p => `<span class="pill">${esc(p.title)}</span>`).join('')}`
       : 'The library is empty.';
   }catch{ $('#library').textContent = ''; }
 }
 
-function fieldFor(name, schema, required, value){
+function fieldFor(name, schema, required){
   const s = schema.anyOf ? (schema.anyOf.find(x => x.type !== 'null') || {}) : schema;
   const opt = required ? '' : ' <span class="hint">(optional)</span>';
   const id = `f_${name}`;
   let input;
-  if (s.enum) input = `<select id="${id}" name="${name}">${s.enum.map(v => `<option ${v===(value??schema.default)?'selected':''}>${esc(v)}</option>`).join('')}</select>`;
-  else if (s.type === 'array') input = `<input id="${id}" name="${name}" data-type="array" placeholder="comma-separated" value="${esc((value||[]).join(', '))}">`;
-  else if (s.type === 'integer') input = `<input id="${id}" name="${name}" data-type="integer" type="number" placeholder="${schema.default ?? ''}" value="${value ?? ''}">`;
-  else input = `<textarea id="${id}" name="${name}" rows="1">${esc(value ?? '')}</textarea>`;
+  if (s.enum) input = `<select id="${id}" name="${name}">${s.enum.map(v => `<option ${v === schema.default ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select>`;
+  else if (s.type === 'array') input = `<input id="${id}" name="${name}" data-type="array" placeholder="comma-separated">`;
+  else if (s.type === 'integer') input = `<input id="${id}" name="${name}" data-type="integer" type="number" placeholder="${schema.default ?? ''}">`;
+  else input = `<textarea id="${id}" name="${name}" rows="1"></textarea>`;
   return `<div class="field"><label for="${id}">${esc(name)}${opt}</label>${input}</div>`;
 }
 
 function select(name){
   current = META.tools.find(t => t.name === name);
+  const info = TOOLS[name] || {examples: []};
   document.querySelectorAll('#toolList button').forEach(b => b.setAttribute('aria-current', b.dataset.name === name));
   const props = current.inputSchema.properties || {}, req = current.inputSchema.required || [];
-  const ex = EXAMPLES[name] || {};
+  const limit = (META.limits || {})[name];
   $('#toolDetail').innerHTML = `
-    <h2>${esc(name)}</h2><p class="desc">${esc(current.description || '')}</p>
-    ${META.blocked[name] ? `<p class="notice">${esc(META.blocked[name])} You can still call it to see the error response.</p>` : ''}
-    <form id="callForm">${Object.entries(props).map(([k, s]) => fieldFor(k, s, req.includes(k), ex[k])).join('') || '<p class="meta">No arguments.</p>'}
-      <div class="row"><button class="btn" id="callBtn">Call tool</button><span class="meta" id="callMeta"></span></div>
-    </form>
-    <div class="wire" id="wire">
-      <div><h3>Request → server</h3><pre class="json" id="reqPane"></pre></div>
-      <div><h3>Response ← server</h3><pre class="json" id="resPane"><span class="meta">Press “Call tool”.</span></pre></div>
-    </div>`;
-  const preview = () => $('#reqPane').innerHTML = hl({jsonrpc:"2.0", id:"…", method:"tools/call", params:{name, arguments: readArgs()}});
-  $('#callForm').addEventListener('input', preview); preview();
-  $('#callForm').onsubmit = async e => {
-    e.preventDefault();
-    const btn = $('#callBtn'); btn.disabled = true;
-    $('#callMeta').innerHTML = name === 'add_paper'
-      ? '<span class="spinner"></span> downloading and indexing the paper (can take up to a minute)…'
-      : '<span class="spinner"></span> calling…';
-    try{
-      const d = await api('/api/call', {tool:name, arguments: readArgs()});
-      $('#reqPane').innerHTML = hl(d.request); $('#resPane').innerHTML = hl(d.response);
-      const err = d.response.result.isError;
-      $('#callMeta').innerHTML = `<span class="${err?'status-err':'status-ok'}">${err?'tool error':'ok'}</span> · ${d.ms} ms`;
-    }catch(err){ $('#callMeta').innerHTML = `<span class="status-err">${esc(err.message)}</span>`; }
-    btn.disabled = false;
-  };
+    <h2>${esc(name)}</h2>
+    <p class="tool-summary">${esc(info.summary || current.description || '')}</p>
+    ${limit ? `<p class="limit">Public demo: ${esc(limit)}</p>` : ''}
+    ${info.examples.length ? `<h3 class="sec">Try an example</h3>
+    <div class="ex-list">${info.examples.map((x, i) => `<button class="ex" data-i="${i}">
+        <span class="ex-label">${esc(x.label)}</span>
+        <code class="ex-args">${esc(name)}(${esc(JSON.stringify(x.args))})</code></button>`).join('')}</div>` : ''}
+    <div class="result" id="result" hidden>
+      <div class="result-head"><h3 class="sec">Result</h3><span class="meta" id="callMeta"></span></div>
+      <div id="pretty"></div>
+      <details class="raw"><summary>Raw JSON-RPC messages</summary>
+        <div class="wire"><div><h3>Request → server</h3><pre class="json" id="reqPane"></pre></div>
+        <div><h3>Response ← server</h3><pre class="json" id="resPane"></pre></div></div></details>
+    </div>
+    <details class="custom"><summary>Call it with your own arguments</summary>
+      <form id="callForm">${Object.entries(props).map(([k, s]) => fieldFor(k, s, req.includes(k))).join('') || '<p class="meta">No arguments.</p>'}
+        <div class="row"><button class="btn" id="callBtn">Call ${esc(name)}</button></div>
+      </form></details>`;
+  $('#toolDetail').querySelectorAll('.ex').forEach(b => b.onclick = () => {
+    const x = info.examples[+b.dataset.i];
+    fillForm(x.args);
+    run(name, x.args);
+  });
+  $('#callForm').onsubmit = e => { e.preventDefault(); run(name, readArgs()); };
 }
 
+function fillForm(args){
+  for (const el of document.querySelectorAll('#callForm [name]')){
+    const v = args[el.name];
+    if (el.tagName === 'SELECT') el.value = v ?? el.options[0].value;
+    else el.value = v === undefined || v === null ? '' : Array.isArray(v) ? v.join(', ') : v;
+  }
+}
+
+let busy = false;
+async function run(name, args){
+  if (busy) return;
+  busy = true;
+  const buttons = document.querySelectorAll('#toolDetail .ex, #callBtn, #pretty .sec-chip');
+  buttons.forEach(b => b.disabled = true);
+  const box = $('#result'); box.hidden = false;
+  $('#pretty').innerHTML = `<p class="meta"><span class="spinner"></span> ${name === 'add_paper'
+    ? 'Downloading and indexing the paper (can take up to a minute)…' : 'Calling the MCP server…'}</p>`;
+  $('#callMeta').textContent = '';
+  $('#reqPane').innerHTML = hl({jsonrpc: "2.0", id: "…", method: "tools/call", params: {name, arguments: args}});
+  $('#resPane').textContent = '';
+  box.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+  try{
+    const d = await api('/api/call', {tool: name, arguments: args});
+    $('#reqPane').innerHTML = hl(d.request); $('#resPane').innerHTML = hl(d.response);
+    const r = d.response.result;
+    $('#callMeta').innerHTML = `<span class="${r.isError ? 'status-err' : 'status-ok'}">${r.isError ? 'tool error' : 'ok'}</span> · ${d.ms} ms`;
+    $('#pretty').innerHTML = r.isError
+      ? `<p class="notice status-err">${esc((r.content || []).map(c => c.text).join(' ').replace(/^Error executing tool \w+: /, ''))}</p>`
+      : render(name, r.structuredContent, args);
+    if (!r.isError && ['add_paper', 'remove_paper'].includes(name)) showLibrary();
+  }catch(err){
+    $('#pretty').innerHTML = `<p class="notice status-err">${esc(err.message)}</p>`;
+  }
+  buttons.forEach(b => b.disabled = false);
+  busy = false;
+}
+
+// ---- readable views of each tool's structured result ----
+const cite = (sec, page) => `<span class="cite">${esc(sec || '')}${page ? ` · p.${page}` : ''}</span>`;
+const authorsShort = a => !a || !a.length ? '' : a.length > 3 ? `${esc(a.slice(0, 3).join(', '))} et al.` : esc(a.join(', '));
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+function clip(text, n){
+  text = String(text || '');
+  if (text.length <= n) return esc(text);
+  return `${esc(text.slice(0, n))}<span class="more" hidden>${esc(text.slice(n))}</span><button class="link" data-more>… show all</button>`;
+}
+function render(name, sc, args){
+  if (!sc) return '<p class="meta">No structured result.</p>';
+  switch (name){
+    case 'search': {
+      const rs = sc.results || [];
+      if (!rs.length) return '<p class="meta">No matching passages.</p>';
+      return `<p class="meta">${plural(rs.length, 'passage')} for “${esc(args.query)}”</p>` + rs.map(h => `
+        <div class="card"><div class="card-head"><b>${esc(h.title)}</b> <span class="meta">(${h.year ?? 'n.d.'})</span></div>
+        ${cite(h.section, h.page)} ${(h.matched_by || []).map(m => `<span class="badge">${esc(m)}</span>`).join(' ')}
+        <p class="passage">${esc(h.snippet)}</p></div>`).join('');
+    }
+    case 'get_paper': {
+      if (sc.section) return `<div class="card"><div class="card-head"><b>${esc(sc.title)}</b></div>
+        <h4 class="sect">${esc(sc.section)}</h4>${cite('', (sc.pages || []).join(', '))}
+        <p class="passage">${clip(sc.text, 1400)}</p></div>`;
+      return `<div class="card" data-paper="${esc(sc.paper_id)}"><div class="card-head"><b>${esc(sc.title)}</b> <span class="meta">(${sc.year ?? 'n.d.'})</span></div>
+        <div class="meta">${authorsShort(sc.authors)} · <code>${esc(sc.paper_id)}</code></div>
+        <h4 class="sect">Abstract</h4><p class="passage">${clip(sc.abstract, 600)}</p>
+        <h4 class="sect">Sections <span class="meta">(click one to read it)</span></h4>
+        <div class="chips">${(sc.sections || []).map(s => `<button class="chip sec-chip" data-sec="${esc(s.name)}">${esc(s.name)} <span class="meta">p.${s.page}</span></button>`).join('')}</div>
+        ${(sc.notes || []).length ? `<h4 class="sect">Notes</h4>${sc.notes.map(n => `<p class="note">${esc(n.text)} <span class="meta">${esc((n.created_at || '').slice(0, 16).replace('T', ' '))}</span></p>`).join('')}` : ''}
+        </div>`;
+    }
+    case 'get_citations': {
+      const refs = sc.references || [], by = sc.cited_by || [];
+      return `<div class="card"><div class="card-head"><b>${esc(sc.title)}</b></div>
+        <h4 class="sect">Cited by ${plural(by.length, 'paper')} in the library</h4>
+        ${by.length ? by.map(c => `<div class="cited"><b>${esc(c.title)}</b><div class="meta">listed there as: ${esc(c.as_reference)}</div></div>`).join('') : '<p class="meta">None yet.</p>'}
+        <h4 class="sect">References (${refs.length}; ${sc.references_in_library || 0} in the library)</h4>
+        <ol class="refs">${refs.map(r => `<li value="${r.n}" class="${r.in_library ? 'in-lib' : ''}">${esc(r.reference)}${r.in_library ? ' <span class="badge ro">in library</span>' : ''}</li>`).join('')}</ol></div>`;
+    }
+    case 'compare_papers': {
+      const papers = Object.values(sc.papers || {});
+      const aspects = args.aspects || [];
+      return `<div class="cmp-wrap"><table class="cmp"><thead><tr><th>Aspect</th>${papers.map(p => `<th>${esc(p.title)} <span class="meta">(${p.year ?? ''})</span></th>`).join('')}</tr></thead><tbody>
+        ${aspects.map(a => `<tr><th>${esc(a)}</th>${papers.map(p => `<td>${((p.aspects || {})[a] || []).map(x => `<p class="passage">${esc(x.passage)}</p>${cite(x.section, x.page)}`).join('<hr>') || '<span class="meta">nothing found</span>'}</td>`).join('')}</tr>`).join('')}
+        </tbody></table></div>`;
+    }
+    case 'list_papers':
+      return `<p class="meta">${plural(sc.count, 'paper')}</p><table class="plist"><tbody>${(sc.papers || []).map(p => `
+        <tr><td><b>${esc(p.title)}</b><div class="meta">${authorsShort(p.authors)}</div></td><td>${p.year ?? ''}</td><td><code>${esc(p.paper_id)}</code></td></tr>`).join('')}</tbody></table>`;
+    case 'add_paper': {
+      const p = sc.paper || {};
+      if (sc.already_in_library) return `<p class="notice"><b>${esc(p.title)}</b> is already in the library, so nothing was re-processed.</p>`;
+      return `<p class="notice ok-notice">Added <b>${esc(p.title)}</b> (${p.year ?? ''}).</p>
+        <ul class="facts"><li><b>${sc.chunks_indexed}</b> searchable chunks</li>
+        <li><b>${sc.references_found}</b> references parsed, <b>${sc.references_in_library}</b> already in the library</li>
+        <li>cited by <b>${sc.cited_by_in_library}</b> library ${sc.cited_by_in_library === 1 ? 'paper' : 'papers'}</li></ul>
+        <p class="meta">Next: search for something from this paper, or open it with get_paper <code>${esc(p.paper_id)}</code>.</p>`;
+    }
+    case 'add_note':
+      return `<p class="notice ok-notice">Note saved on <code>${esc(sc.paper_id)}</code>. Open the paper with get_paper to see it.</p>`;
+    case 'remove_paper':
+      return `<p class="notice ok-notice">Removed <b>${esc(sc.title)}</b> (<code>${esc(sc.removed)}</code>) with its index, notes and citation links.</p>`;
+  }
+  return `<pre class="json">${hl(sc)}</pre>`;
+}
+
+document.addEventListener('click', e => {
+  // "show all" on clipped text
+  const more = e.target.closest('[data-more]');
+  if (more){ more.previousElementSibling.hidden = false; more.remove(); return; }
+  // a section chip in a get_paper overview reads that section
+  const chip = e.target.closest('.sec-chip');
+  if (chip && !busy){
+    const args = {paper_id: chip.closest('[data-paper]').dataset.paper, section: chip.dataset.sec};
+    fillForm(args); run('get_paper', args);
+  }
+});
+
 function readArgs(){
-  const out = {}, props = current.inputSchema.properties || {};
+  const out = {};
   for (const el of document.querySelectorAll('#callForm [name]')){
     const v = el.value.trim(); if (!v) continue;
     if (el.dataset.type === 'array') out[el.name] = v.split(',').map(x => x.trim()).filter(Boolean);
@@ -306,11 +503,23 @@ function setupAsk(){
 }
 
 $('#remoteCmd').textContent = `claude mcp add --transport http paper-librarian ${location.origin}/mcp`;
-document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => {
-  document.querySelectorAll('nav.tabs button').forEach(x => x.setAttribute('aria-selected', x === b));
-  for (const id of ['explore','ask','install']) $('#'+id).hidden = id !== b.dataset.tab;
-});
-load().catch(e => $('#toolList').innerHTML = `<p class="status-err" style="padding:10px">Failed to load: ${esc(e.message)}</p>`);
+function showTab(tab){
+  document.querySelectorAll('nav.tabs button').forEach(x => x.setAttribute('aria-selected', x.dataset.tab === tab));
+  for (const id of ['explore','ask','install']) $('#'+id).hidden = id !== tab;
+}
+document.querySelectorAll('nav.tabs button').forEach(b => b.onclick = () => showTab(b.dataset.tab));
+// Deep links: #explore, #explore/<tool>, #explore/<tool>/<example number> (runs it), #install
+function route(){
+  const [tab, tool, ex] = location.hash.slice(1).split('/');
+  if (!['explore', 'install', 'ask'].includes(tab)) return;
+  showTab(tab);
+  if (tab === 'explore' && tool && META.tools.some(t => t.name === tool)){
+    select(tool);
+    const btn = ex !== undefined && document.querySelectorAll('#toolDetail .ex')[+ex];
+    if (btn) btn.click();
+  }
+}
+load().then(route).catch(e => $('#toolList').innerHTML = `<p class="status-err" style="padding:10px">Failed to load: ${esc(e.message)}</p>`);
 </script>
 </body>
 </html>

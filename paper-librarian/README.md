@@ -43,7 +43,10 @@ It's listed in the official [MCP Registry](https://registry.modelcontextprotocol
 `io.github.NeelGhoshal/paper-librarian`. MCP clients and server directories that read the registry
 can discover and install it from there; the listing points to the same PyPI package.
 
-The first launch is slow: it installs the dependencies and downloads a ~90 MB embedding model.
+The first launch is slow: `uvx` downloads the dependencies (including PyTorch, about 2 minutes),
+then the ~90 MB embedding model on first use. Later launches take a few seconds. If Claude reports
+that the server failed to connect on the very first try, run `uvx paper-librarian` once in a terminal
+to pre-download everything, press Ctrl+C once it's waiting, then restart Claude.
 Set `LIBRARIAN_HOME` to choose where the library is stored (default `~/.librarian`).
 
 ### Example prompts

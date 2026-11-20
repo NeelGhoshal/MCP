@@ -20,11 +20,17 @@ PAPERS = [
     "2005.11401",  # Retrieval-Augmented Generation
 ]
 
-db = Path(os.environ.get("DEMO_DB", Path(__file__).parent / "data" / "library.db"))
-db.parent.mkdir(parents=True, exist_ok=True)
-emb = OnnxEmbedder()
-store = Store(db, embedding_dim=emb.dim)
-for arxiv_id in PAPERS:
-    result = ingest(arxiv_id, store, emb, progress=lambda m: print("  ", m, flush=True))
-    print(f"{arxiv_id}: {result.paper.title} ({result.chunk_count} chunks)", flush=True)
-store.close()
+
+def main() -> None:
+    db = Path(os.environ.get("DEMO_DB", Path(__file__).parent / "data" / "library.db"))
+    db.parent.mkdir(parents=True, exist_ok=True)
+    emb = OnnxEmbedder()
+    store = Store(db, embedding_dim=emb.dim)
+    for arxiv_id in PAPERS:
+        result = ingest(arxiv_id, store, emb, progress=lambda m: print("  ", m, flush=True))
+        print(f"{arxiv_id}: {result.paper.title} ({result.chunk_count} chunks)", flush=True)
+    store.close()
+
+
+if __name__ == "__main__":
+    main()
