@@ -8,6 +8,8 @@ Built on the **MCP Python SDK 2.x** (`MCPServer`, the 2.x successor to `FastMCP`
 Add papers by arXiv id or PDF path, then ask questions about them. Answers cite the paper, section
 and page, and references between papers in the library are linked in both directions.
 
+**Try it live, no install:** https://paper-librarian-demo.onrender.com
+
 ## Get it
 
 Paper Librarian is public and free to use. It runs on your own machine, so your library, PDFs and
@@ -60,9 +62,30 @@ Once it's connected, ask Claude in plain language:
 
 ### Try it in the browser
 
-The hosted demo has an **Ask** box where a free open model (via Groq) answers questions by calling this
-MCP server. You don't need to install anything, and every tool call is shown. The demo library is
-shared and read-mostly: you can add arXiv papers, but not remove papers or add notes.
+**Website:** [paper-librarian-demo.onrender.com](https://paper-librarian-demo.onrender.com)
+
+The website has an **Ask** box where a free open model (via Groq) answers questions by calling this
+MCP server. You don't need to install anything, and every tool call is shown. A **Tool explorer** tab
+lets you call each tool yourself and see the raw JSON-RPC messages. The demo library is shared and
+read-mostly: you can add arXiv papers, but not remove papers or add notes. It runs on Render's free
+plan, so the first visit after a quiet spell can take ~30 s to wake up.
+
+### Connect Claude to the hosted server
+
+To search the demo library from Claude without installing anything, add this URL as a custom connector
+(claude.ai or Claude Desktop: Settings → Connectors → *Add custom connector*):
+
+```
+https://paper-librarian-demo.onrender.com/mcp
+```
+
+In Claude Code:
+
+```bash
+claude mcp add --transport http paper-librarian-demo https://paper-librarian-demo.onrender.com/mcp
+```
+
+This endpoint is read-only (search, read and compare only). Install the package to build your own library.
 
 ---
 

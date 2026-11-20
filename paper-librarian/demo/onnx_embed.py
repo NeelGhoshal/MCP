@@ -12,6 +12,7 @@ import numpy as np
 
 MODEL_REPO = "sentence-transformers/all-MiniLM-L6-v2"
 MAX_TOKENS = 256  # the model's max_seq_length
+BATCH = 8  # small batches keep peak memory low on the free tier
 
 
 class OnnxEmbedder:
@@ -37,6 +38,10 @@ class OnnxEmbedder:
                 tok.enable_padding()
                 opts = ort.SessionOptions()
                 opts.intra_op_num_threads = int(os.environ.get("EMBED_THREADS", "1"))
+                # The default arena grows to fit the largest batch and never shrinks; on a 512 MB
+                # instance that alone OOM-kills add_paper. Allocate per run instead.
+                opts.enable_cpu_mem_arena = False
+                opts.enable_mem_pattern = False
                 self._session = ort.InferenceSession(
                     hf_hub_download(MODEL_REPO, "onnx/model.onnx"), opts, providers=["CPUExecutionProvider"]
                 )
@@ -49,8 +54,8 @@ class OnnxEmbedder:
         session, tok = self._load()
         wanted = {i.name for i in session.get_inputs()}
         out: list[list[float]] = []
-        for start in range(0, len(texts), 16):
-            enc = tok.encode_batch(texts[start : start + 16])
+        for start in range(0, len(texts), BATCH):
+            enc = tok.encode_batch(texts[start : start + BATCH])
             ids = np.array([e.ids for e in enc], dtype=np.int64)
             mask = np.array([e.attention_mask for e in enc], dtype=np.int64)
             feeds = {"input_ids": ids, "attention_mask": mask, "token_type_ids": np.zeros_like(ids)}
